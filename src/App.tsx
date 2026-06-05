@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout/AppShell"
 import { CollectionsView } from "./app/routes/CollectionsView"
 import { FavoritesView } from "./app/routes/FavoritesView"
@@ -11,6 +11,8 @@ import {
   getCollectionsForRepository,
   getRepositoryNoteDrafts,
   getRepositoryStoreSnapshot,
+  loadRepositoryStoreSnapshot,
+  persistRepositoryNote,
   type StatusFilter
 } from "./data/repositories/repositoryStore"
 import type { View } from "./types/navigation"
@@ -19,21 +21,50 @@ import { filterRepositories } from "./utils/filters"
 
 function App() {
   const store = useMemo(() => getRepositoryStoreSnapshot(), [])
-  const dashboard = useMemo(() => getDashboardData(), [])
+  const [repositoryStore, setRepositoryStore] = useState(store)
+  const dashboard = useMemo(() => getDashboardData(repositoryStore), [repositoryStore])
   const [view, setView] = useState<View>("home")
-  const [selectedRepoId, setSelectedRepoId] = useState(store.repositories[0].id)
+  const [selectedRepoId, setSelectedRepoId] = useState(repositoryStore.repositories[0].id)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
-  const [notesByRepoId, setNotesByRepoId] = useState(() => getRepositoryNoteDrafts())
+  const [notesByRepoId, setNotesByRepoId] = useState(() => getRepositoryNoteDrafts(repositoryStore.repositoryNotes))
 
-  const selectedRepo = store.repositories.find((repository) => repository.id === selectedRepoId) ?? store.repositories[0]
+  useEffect(() => {
+    let isMounted = true
+
+    loadRepositoryStoreSnapshot().then((snapshot) => {
+      if (!isMounted) {
+        return
+      }
+
+      setRepositoryStore(snapshot)
+      setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+      setSelectedRepoId((currentId) => {
+        return snapshot.repositories.some((repository) => repository.id === currentId)
+          ? currentId
+          : snapshot.repositories[0]?.id ?? currentId
+      })
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const selectedRepo =
+    repositoryStore.repositories.find((repository) => repository.id === selectedRepoId) ?? repositoryStore.repositories[0]
   const filteredRepositories = useMemo(
-    () => filterRepositories(store.repositories, query, statusFilter),
-    [store.repositories, query, statusFilter]
+    () => filterRepositories(repositoryStore.repositories, query, statusFilter),
+    [repositoryStore.repositories, query, statusFilter]
   )
   const selectedRepoCollections = useMemo(
-    () => getCollectionsForRepository(selectedRepo.id),
-    [selectedRepo.id]
+    () =>
+      getCollectionsForRepository(
+        selectedRepo.id,
+        repositoryStore.repositoryCollections,
+        repositoryStore.collections
+      ),
+    [selectedRepo.id, repositoryStore.repositoryCollections, repositoryStore.collections]
   )
 
   function openRepository(repository: Repository) {
@@ -44,17 +75,17 @@ function App() {
   return (
     <AppShell
       activeView={view}
-      collectionCount={store.collections.length}
+      collectionCount={repositoryStore.collections.length}
       onNavigate={setView}
-      repositoryCount={store.repositories.length}
+      repositoryCount={repositoryStore.repositories.length}
     >
       {view === "home" && (
         <HomeView
-          collectionSummaries={store.collectionSummaries}
+          collectionSummaries={repositoryStore.collectionSummaries}
           dashboard={dashboard}
           onNavigate={setView}
           onOpenRepository={openRepository}
-          repositoryCount={store.repositories.length}
+          repositoryCount={repositoryStore.repositories.length}
         />
       )}
 
@@ -70,7 +101,7 @@ function App() {
         />
       )}
 
-      {view === "collections" && <CollectionsView collectionSummaries={store.collectionSummaries} />}
+      {view === "collections" && <CollectionsView collectionSummaries={repositoryStore.collectionSummaries} />}
 
       {view === "favorites" && (
         <FavoritesView
@@ -85,13 +116,20 @@ function App() {
           collections={selectedRepoCollections}
           notes={notesByRepoId[selectedRepo.id] ?? ""}
           repository={selectedRepo}
-          setNotes={(nextNotes) =>
+          setNotes={(nextNotes) => {
             setNotesByRepoId((current) => ({ ...current, [selectedRepo.id]: nextNotes }))
-          }
+            setRepositoryStore((current) => ({
+              ...current,
+              repositoryNotes: current.repositoryNotes.map((note) =>
+                note.repositoryId === selectedRepo.id ? { ...note, body: nextNotes } : note
+              )
+            }))
+            void persistRepositoryNote(selectedRepo.id, nextNotes)
+          }}
         />
       )}
 
-      {view === "settings" && <SettingsView preferences={store.userPreferences} />}
+      {view === "settings" && <SettingsView preferences={repositoryStore.userPreferences} />}
     </AppShell>
   )
 }
