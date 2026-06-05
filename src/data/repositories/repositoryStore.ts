@@ -38,6 +38,11 @@ export type DashboardData = {
 
 export type StatusFilter = RepositoryStatus | "all"
 
+export type StarredImportResult = {
+  imported: number
+  refreshed: number
+}
+
 export function getRepositoryStoreSnapshot(): RepositoryStoreSnapshot {
   return createSnapshot({
     repositories,
@@ -117,6 +122,17 @@ export async function persistUserPreference(key: keyof UserPreferences, value: s
   } catch {
     // Preferences are not editable in the current UI.
   }
+}
+
+export async function importStarredRepositories(
+  token: string
+): Promise<{ result: StarredImportResult; snapshot: RepositoryStoreSnapshot }> {
+  if (!isTauriRuntime()) {
+    throw new Error("GitHub import requires the Tauri desktop app.")
+  }
+
+  const result = await invoke<StarredImportResult>("import_starred_repositories", { request: { token } })
+  return { result, snapshot: await loadRepositoryStoreSnapshot() }
 }
 
 export async function seedDevDatabase(): Promise<RepositoryStoreSnapshot> {

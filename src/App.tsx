@@ -11,9 +11,11 @@ import {
   getCollectionsForRepository,
   getRepositoryNoteDrafts,
   getRepositoryStoreSnapshot,
+  importStarredRepositories,
   loadRepositoryStoreSnapshot,
   persistRepositoryNote,
   persistRepositoryStatus,
+  persistUserPreference,
   resetDevDatabase,
   seedDevDatabase,
   type StatusFilter
@@ -32,6 +34,10 @@ function App() {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [notesByRepoId, setNotesByRepoId] = useState(() => getRepositoryNoteDrafts(repositoryStore.repositoryNotes))
+  const [githubToken, setGithubToken] = useState(repositoryStore.userPreferences.githubToken ?? "")
+  const [importStatus, setImportStatus] = useState<"idle" | "importing" | "success" | "error">("idle")
+  const [importMessage, setImportMessage] = useState("")
+  const [importError, setImportError] = useState("")
 
   useEffect(() => {
     let isMounted = true
@@ -43,6 +49,7 @@ function App() {
 
       setRepositoryStore(snapshot)
       setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+      setGithubToken(snapshot.userPreferences.githubToken ?? "")
       setSelectedRepoId((currentId) => {
         return snapshot.repositories.some((repository) => repository.id === currentId)
           ? currentId
@@ -79,6 +86,7 @@ function App() {
   function applySnapshot(snapshot: typeof repositoryStore) {
     setRepositoryStore(snapshot)
     setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+    setGithubToken(snapshot.userPreferences.githubToken ?? "")
     setSelectedRepoId((currentId) => {
       return snapshot.repositories.some((repository) => repository.id === currentId)
         ? currentId
@@ -113,6 +121,31 @@ function App() {
 
   function resetDatabase() {
     void resetDevDatabase().then(applySnapshot)
+  }
+
+  function changeGithubToken(token: string) {
+    setGithubToken(token)
+    setImportMessage("")
+    setImportError("")
+    void persistUserPreference("githubToken", token)
+  }
+
+  function importStarred() {
+    setImportStatus("importing")
+    setImportMessage("Importing starred repositories...")
+    setImportError("")
+
+    void importStarredRepositories(githubToken)
+      .then(({ result, snapshot }) => {
+        applySnapshot(snapshot)
+        setImportStatus("success")
+        setImportMessage(`Imported ${result.imported} new repos. Refreshed ${result.refreshed} existing repos.`)
+      })
+      .catch((error: unknown) => {
+        setImportStatus("error")
+        setImportMessage("")
+        setImportError(error instanceof Error ? error.message : "GitHub import failed.")
+      })
   }
 
   return (
@@ -166,8 +199,14 @@ function App() {
 
       {view === "settings" && (
         <SettingsView
+          githubToken={githubToken}
+          importError={importError}
+          importMessage={importMessage}
+          importStatus={importStatus}
+          onImportStarred={importStarred}
           onResetDatabase={resetDatabase}
           onSeedDatabase={seedDatabase}
+          onTokenChange={changeGithubToken}
           preferences={repositoryStore.userPreferences}
         />
       )}

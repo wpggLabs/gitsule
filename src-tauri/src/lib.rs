@@ -7,6 +7,7 @@ pub fn run() {
             db::get_repository_store_snapshot,
             db::seed_repository_store_snapshot,
             db::reset_dev_database,
+            db::import_starred_repositories,
             db::save_repository_note,
             db::save_repository_status,
             db::save_repository_collection,
