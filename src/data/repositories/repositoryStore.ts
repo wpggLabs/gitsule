@@ -4,7 +4,7 @@ import type { Collection } from "../../types/collection"
 import type { RepositoryCollection } from "../../types/collection"
 import type { Repository, RepositoryNote, RepositorySignal } from "../../types/repository"
 import type { RepositoryStatus } from "../../types/status"
-import { repositoryStatus } from "../../types/status"
+import { repositoryStatus, repositoryStatuses } from "../../types/status"
 import type { UserPreferences } from "../../types/userPreferences"
 
 export type CollectionSummary = Collection & {
@@ -20,6 +20,7 @@ export type RepositoryStoreSnapshot = {
   repositoryNotes: RepositoryNote[]
   repositorySignals: RepositorySignal[]
   userPreferences: UserPreferences
+  settingsMetadata: SettingsMetadata
 }
 
 export type RepositoryNoteDrafts = Record<number, string>
@@ -41,6 +42,12 @@ export type StatusFilter = RepositoryStatus | "all"
 export type StarredImportResult = {
   imported: number
   refreshed: number
+}
+
+export type SettingsMetadata = {
+  importedRepositoryCount: number
+  lastImportAt: string | null
+  databaseSizeBytes: number
 }
 
 export function getRepositoryStoreSnapshot(): RepositoryStoreSnapshot {
@@ -168,21 +175,87 @@ function createSnapshot(data: {
   repositoryNotes: RepositoryNote[]
   repositorySignals: RepositorySignal[]
   userPreferences: UserPreferences
+  settingsMetadata?: SettingsMetadata
 }): RepositoryStoreSnapshot {
-  const collectionCounts = getCollectionCounts(data.repositoryCollections)
+  const normalizedCollections = data.collections.map(normalizeCollection)
+  const normalizedRepositoryCollections = data.repositoryCollections.map(normalizeRepositoryCollection)
+  const collectionCounts = getCollectionCounts(normalizedRepositoryCollections)
 
   return {
-    repositories: data.repositories,
-    collections: data.collections,
-    collectionSummaries: data.collections.map((collection) => ({
+    repositories: data.repositories.map(normalizeRepository),
+    collections: normalizedCollections,
+    collectionSummaries: normalizedCollections.map((collection) => ({
       ...collection,
       repoCount: collectionCounts[collection.id] ?? 0
     })),
     collectionCounts,
-    repositoryCollections: data.repositoryCollections,
-    repositoryNotes: data.repositoryNotes,
-    repositorySignals: data.repositorySignals,
-    userPreferences: data.userPreferences
+    repositoryCollections: normalizedRepositoryCollections,
+    repositoryNotes: data.repositoryNotes.map(normalizeRepositoryNote),
+    repositorySignals: data.repositorySignals.map(normalizeRepositorySignal),
+    userPreferences: data.userPreferences,
+    settingsMetadata: data.settingsMetadata ?? {
+      importedRepositoryCount: 0,
+      lastImportAt: null,
+      databaseSizeBytes: 0
+    }
+  }
+}
+
+function normalizeRepository(repository: Repository): Repository {
+  return {
+    id: Number(repository.id),
+    githubId: Number(repository.githubId),
+    name: repository.name || "Untitled",
+    owner: repository.owner || "unknown",
+    fullName: repository.fullName || `${repository.owner || "unknown"}/${repository.name || "untitled"}`,
+    description: repository.description || "No description.",
+    language: repository.language || "Unknown",
+    stars: Number(repository.stars) || 0,
+    forks: Number(repository.forks) || 0,
+    topics: Array.isArray(repository.topics) ? repository.topics.filter(Boolean) : [],
+    license: repository.license || null,
+    homepage: repository.homepage || null,
+    githubUrl: repository.githubUrl || "",
+    lastUpdated: repository.lastUpdated || "",
+    status: normalizeRepositoryStatus(repository.status)
+  }
+}
+
+function normalizeRepositoryStatus(status: RepositoryStatus): RepositoryStatus {
+  return repositoryStatuses.includes(status) ? status : repositoryStatus.wantToTry
+}
+
+function normalizeCollection(collection: Collection): Collection {
+  return {
+    id: collection.id || "uncategorized",
+    name: collection.name || "Uncategorized",
+    description: collection.description || "",
+    color: collection.color || "#2f81f7"
+  }
+}
+
+function normalizeRepositoryCollection(link: RepositoryCollection): RepositoryCollection {
+  return {
+    repositoryId: Number(link.repositoryId),
+    collectionId: link.collectionId || "uncategorized"
+  }
+}
+
+function normalizeRepositoryNote(note: RepositoryNote): RepositoryNote {
+  return {
+    id: note.id || `note-${note.repositoryId}`,
+    repositoryId: Number(note.repositoryId),
+    body: note.body || "",
+    createdAt: note.createdAt || "",
+    updatedAt: note.updatedAt || ""
+  }
+}
+
+function normalizeRepositorySignal(signal: RepositorySignal): RepositorySignal {
+  return {
+    repositoryId: Number(signal.repositoryId),
+    starredAt: signal.starredAt || "",
+    lastVisitedAt: signal.lastVisitedAt || null
   }
 }
 

@@ -28,9 +28,9 @@ export function RepoCard({ repository, selected, onSelect }: Props) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500">
-        <span>{repository.language}</span>
-        <span>{repository.stars.toLocaleString()} stars</span>
-        <span>{repository.forks.toLocaleString()} forks</span>
+        <span>{repository.language || "Unknown"}</span>
+        <span>{(Number(repository.stars) || 0).toLocaleString()} stars</span>
+        <span>{(Number(repository.forks) || 0).toLocaleString()} forks</span>
         <span>Updated {formatShortDate(repository.lastUpdated)}</span>
       </div>
     </button>

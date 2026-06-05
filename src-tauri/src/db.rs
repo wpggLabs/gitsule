@@ -75,6 +75,14 @@ pub struct UserPreferences {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SettingsMetadata {
+    imported_repository_count: i64,
+    last_import_at: Option<String>,
+    database_size_bytes: i64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StoreSnapshot {
     repositories: Vec<Repository>,
     collections: Vec<Collection>,
@@ -82,6 +90,7 @@ pub struct StoreSnapshot {
     repository_notes: Vec<RepositoryNote>,
     repository_signals: Vec<RepositorySignal>,
     user_preferences: UserPreferences,
+    settings_metadata: SettingsMetadata,
 }
 
 #[derive(Debug, Serialize)]
@@ -161,8 +170,17 @@ pub fn import_starred_repositories(
         return Err("GitHub token is required.".to_string());
     }
 
+    let github_username = fetch_github_username(&token)?;
     let repositories = fetch_starred_repositories(&token)?;
-    import_repositories(&mut connection, repositories)
+    let result = import_repositories(&mut connection, repositories)?;
+    save_setting(&connection, "githubUsername", &github_username)?;
+    save_setting(&connection, "lastImportAt", &current_timestamp())?;
+    save_setting(
+        &connection,
+        "lastImportedRepositoryCount",
+        &(result.imported + result.refreshed).to_string(),
+    )?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -238,6 +256,7 @@ fn read_snapshot(connection: &Connection) -> Result<StoreSnapshot, String> {
         repository_notes: read_repository_notes(connection)?,
         repository_signals: read_repository_signals(connection)?,
         user_preferences: read_user_preferences(connection)?,
+        settings_metadata: read_settings_metadata(connection)?,
     })
 }
 
@@ -529,6 +548,26 @@ fn fetch_starred_repositories(token: &str) -> Result<Vec<ImportedRepository>, St
     Ok(repositories)
 }
 
+fn fetch_github_username(token: &str) -> Result<String, String> {
+    let client = Client::builder().build().map_err(|error| error.to_string())?;
+    let response = client
+        .get("https://api.github.com/user")
+        .header("User-Agent", "Gitsule")
+        .header("Accept", "application/vnd.github+json")
+        .bearer_auth(token)
+        .send()
+        .map_err(|error| error.to_string())?;
+
+    let status = response.status();
+    let headers = response.headers().clone();
+    if !status.is_success() {
+        return Err(github_api_error_message(status, &headers));
+    }
+
+    let value: Value = response.json().map_err(|error| error.to_string())?;
+    Ok(string_field(&value, "login"))
+}
+
 fn github_api_error_message(status: StatusCode, headers: &HeaderMap) -> String {
     if is_rate_limited(status, headers) {
         let reset = headers
@@ -557,12 +596,13 @@ fn is_rate_limited(status: StatusCode, headers: &HeaderMap) -> bool {
 }
 
 fn normalize_starred_repository(value: Value) -> Result<ImportedRepository, String> {
+    let repo = value.get("repo").unwrap_or(&value);
+    let last_updated = normalize_github_date(&string_field(repo, "updated_at"));
     let starred_at = value
         .get("starred_at")
         .and_then(Value::as_str)
-        .map(String::from)
-        .unwrap_or_else(current_timestamp);
-    let repo = value.get("repo").unwrap_or(&value);
+        .map(normalize_github_date)
+        .unwrap_or_else(|| last_updated.clone());
     let owner = repo
         .get("owner")
         .and_then(|owner| owner.get("login"))
@@ -591,9 +631,13 @@ fn normalize_starred_repository(value: Value) -> Result<ImportedRepository, Stri
             .map(String::from),
         homepage: nullable_string_field(repo, "homepage").filter(|homepage| !homepage.is_empty()),
         github_url: string_field(repo, "html_url"),
-        last_updated: string_field(repo, "updated_at"),
+        last_updated,
         starred_at,
     })
+}
+
+fn normalize_github_date(value: &str) -> String {
+    value.split('T').next().unwrap_or(value).to_string()
 }
 
 fn string_field(value: &Value, key: &str) -> String {
@@ -728,6 +772,25 @@ fn read_user_preferences(connection: &Connection) -> Result<UserPreferences, Str
         .map(|token| !token.trim().is_empty())
         .unwrap_or(false);
     Ok(UserPreferences { theme, github_username, github_token_stored })
+}
+
+fn read_settings_metadata(connection: &Connection) -> Result<SettingsMetadata, String> {
+    let last_import_at = read_setting(connection, "lastImportAt")?;
+    let imported_repository_count = read_setting(connection, "lastImportedRepositoryCount")?
+        .and_then(|count| count.parse::<i64>().ok())
+        .unwrap_or(0);
+    let page_count: i64 = connection
+        .query_row("PRAGMA page_count", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let page_size: i64 = connection
+        .query_row("PRAGMA page_size", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+
+    Ok(SettingsMetadata {
+        imported_repository_count,
+        last_import_at,
+        database_size_bytes: page_count * page_size,
+    })
 }
 
 fn read_setting(connection: &Connection, key: &str) -> Result<Option<String>, String> {

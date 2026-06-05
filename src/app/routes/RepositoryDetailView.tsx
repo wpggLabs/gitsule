@@ -23,7 +23,7 @@ export function RepositoryDetailView({ collections, notes, onStatusChange, repos
       <div className="grid grid-cols-[1fr_340px] gap-6">
         <article className="rounded-md border border-zinc-800 bg-zinc-950/70 p-5">
           <div className="flex items-start justify-between gap-4">
-            <p className="max-w-3xl text-base leading-7 text-zinc-300">{repository.description}</p>
+            <p className="max-w-3xl text-base leading-7 text-zinc-300">{repository.description || "No description."}</p>
             <StatusBadge status={repository.status} />
           </div>
 
@@ -46,9 +46,9 @@ export function RepositoryDetailView({ collections, notes, onStatusChange, repos
           </div>
 
           <div className="mt-6 grid grid-cols-4 gap-3">
-            <DetailMetric label="Language" value={repository.language} />
-            <DetailMetric label="Stars" value={repository.stars.toLocaleString()} />
-            <DetailMetric label="Forks" value={repository.forks.toLocaleString()} />
+            <DetailMetric label="Language" value={repository.language || "Unknown"} />
+            <DetailMetric label="Stars" value={(Number(repository.stars) || 0).toLocaleString()} />
+            <DetailMetric label="Forks" value={(Number(repository.forks) || 0).toLocaleString()} />
             <DetailMetric label="Updated" value={formatShortDate(repository.lastUpdated)} />
           </div>
 
@@ -66,11 +66,15 @@ export function RepositoryDetailView({ collections, notes, onStatusChange, repos
           <div className="rounded-md border border-zinc-800 bg-zinc-950/70 p-4">
             <h2 className="text-sm font-semibold text-zinc-200">Collections</h2>
             <div className="mt-3 flex flex-wrap gap-2">
-              {collections.map((collection) => (
-                <span className="rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-300" key={collection.id}>
-                  {collection.name}
-                </span>
-              ))}
+              {collections.length ? (
+                collections.map((collection) => (
+                  <span className="rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-300" key={collection.id}>
+                    {collection.name}
+                  </span>
+                ))
+              ) : (
+                <span className="text-sm text-zinc-500">No collections yet.</span>
+              )}
             </div>
           </div>
 

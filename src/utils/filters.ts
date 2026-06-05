@@ -11,12 +11,12 @@ export function filterRepositories(
   return repositories.filter((repository) => {
     const matchesStatus = status === "all" || repository.status === status
     const haystack = [
-      repository.name,
-      repository.owner,
-      repository.fullName,
-      repository.description,
-      repository.language,
-      repository.topics.join(" ")
+      repository.name ?? "",
+      repository.owner ?? "",
+      repository.fullName ?? "",
+      repository.description ?? "",
+      repository.language ?? "",
+      Array.isArray(repository.topics) ? repository.topics.join(" ") : ""
     ]
       .join(" ")
       .toLowerCase()

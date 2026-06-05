@@ -14,9 +14,12 @@ type Props = {
 }
 
 export function StatusBadge({ status }: Props) {
+  const style = statusStyles[status] ?? statusStyles.want_to_try
+  const label = statusLabels[status] ?? statusLabels.want_to_try
+
   return (
-    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${statusStyles[status]}`}>
-      {statusLabels[status]}
+    <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${style}`}>
+      {label}
     </span>
   )
 }

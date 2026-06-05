@@ -37,6 +37,22 @@ function App() {
   const [importStatus, setImportStatus] = useState<"idle" | "importing" | "success" | "error">("idle")
   const [importMessage, setImportMessage] = useState("")
   const [importError, setImportError] = useState("")
+  const settingsStats = useMemo(
+    () => ({
+      collectionCount: repositoryStore.collections.length,
+      databaseSizeBytes: repositoryStore.settingsMetadata.databaseSizeBytes,
+      importedRepositoryCount: repositoryStore.settingsMetadata.importedRepositoryCount,
+      lastImportAt: repositoryStore.settingsMetadata.lastImportAt,
+      notesCount: repositoryStore.repositoryNotes.filter((note) => note.body.trim()).length,
+      repositoryCount: repositoryStore.repositories.length
+    }),
+    [
+      repositoryStore.collections.length,
+      repositoryStore.repositoryNotes,
+      repositoryStore.repositories.length,
+      repositoryStore.settingsMetadata
+    ]
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -209,6 +225,7 @@ function App() {
           onSeedDatabase={seedDatabase}
           onTokenChange={changeGithubToken}
           preferences={repositoryStore.userPreferences}
+          stats={settingsStats}
         />
       )}
     </AppShell>
