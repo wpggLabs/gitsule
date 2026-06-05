@@ -1,17 +1,71 @@
-Gitsule is a personal GitHub discovery library.
+# Product Definition
 
-It helps users:
+## One Sentence
 
-- Import starred repositories
+Gitsule is a personal library for GitHub discoveries.
+
+## Problem
+
+GitHub stars become a graveyard.
+
+Users discover repositories but rarely revisit, organize, or evaluate them.
+
+## Solution
+
+Import GitHub stars and turn them into a searchable personal knowledge library.
+
+## Target User
+
+Primary:
+
+- GitHub power users
+- Open source enthusiasts
+- AI tool explorers
+- Self-hosting enthusiasts
+- Vibe coders
+
+Secondary:
+
+- Developers
+- Students
+- Researchers
+
+## Core Jobs
+
+Users want to:
+
+- Save discoveries
 - Organize discoveries
-- Add notes
-- Track interest status
-- Create collections
+- Add context
+- Track exploration progress
 - Rediscover forgotten projects
 
-Gitsule is not:
+## MVP
 
-- A package manager
-- A GitHub replacement
-- A code hosting platform
-- A developer analytics tool
+- GitHub OAuth
+- Import Stars
+- Local Database
+- Collections
+- Notes
+- Status Tracking
+- Search
+- Filters
+
+## Future
+
+- Collections sharing
+- Smart recommendations
+- Install recipes
+- Local launcher support
+- GitHub release tracking
+
+## Explicitly Not MVP
+
+- Installers
+- Docker management
+- WSL management
+- AI summaries
+- Social features
+- Reviews
+- Profiles
+- Marketplace
