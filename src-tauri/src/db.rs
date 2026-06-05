@@ -80,9 +80,31 @@ pub struct StoreSnapshot {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CollectionAssignment {
     pub repository_id: i64,
     pub collection_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteUpdate {
+    pub repository_id: i64,
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusUpdate {
+    pub repository_id: i64,
+    pub status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingUpdate {
+    pub key: String,
+    pub value: String,
 }
 
 #[tauri::command]
@@ -98,7 +120,13 @@ pub fn seed_repository_store_snapshot(app: AppHandle, snapshot: StoreSnapshot) -
 }
 
 #[tauri::command]
-pub fn save_repository_note(app: AppHandle, repository_id: i64, body: String) -> Result<(), String> {
+pub fn reset_dev_database(app: AppHandle) -> Result<(), String> {
+    let mut connection = open_database(&app)?;
+    clear_database(&mut connection)
+}
+
+#[tauri::command]
+pub fn save_repository_note(app: AppHandle, update: NoteUpdate) -> Result<(), String> {
     let connection = open_database(&app)?;
     let now = current_timestamp();
     connection
@@ -106,14 +134,14 @@ pub fn save_repository_note(app: AppHandle, repository_id: i64, body: String) ->
             "INSERT INTO repository_notes (id, repository_id, body, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?4)
              ON CONFLICT(repository_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at",
-            params![format!("note-{repository_id}"), repository_id, body, now],
+            params![format!("note-{}", update.repository_id), update.repository_id, update.body, now],
         )
         .map_err(|error| error.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn save_repository_status(app: AppHandle, repository_id: i64, status: String) -> Result<(), String> {
+pub fn save_repository_status(app: AppHandle, update: StatusUpdate) -> Result<(), String> {
     let connection = open_database(&app)?;
     let now = current_timestamp();
     connection
@@ -121,7 +149,7 @@ pub fn save_repository_status(app: AppHandle, repository_id: i64, status: String
             "INSERT INTO repository_status (repository_id, status, updated_at)
              VALUES (?1, ?2, ?3)
              ON CONFLICT(repository_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at",
-            params![repository_id, status, now],
+            params![update.repository_id, update.status, now],
         )
         .map_err(|error| error.to_string())?;
     Ok(())
@@ -144,14 +172,14 @@ pub fn save_repository_collection(
 }
 
 #[tauri::command]
-pub fn save_user_preference(app: AppHandle, key: String, value: String) -> Result<(), String> {
+pub fn save_user_preference(app: AppHandle, update: SettingUpdate) -> Result<(), String> {
     let connection = open_database(&app)?;
     connection
         .execute(
             "INSERT INTO app_settings (key, value, updated_at)
              VALUES (?1, ?2, ?3)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-            params![key, value, current_timestamp()],
+            params![update.key, update.value, current_timestamp()],
         )
         .map_err(|error| error.to_string())?;
     Ok(())
@@ -290,6 +318,26 @@ fn seed_snapshot(connection: &mut Connection, snapshot: StoreSnapshot) -> Result
     )
     .map_err(|error| error.to_string())?;
 
+    tx.commit().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn clear_database(connection: &mut Connection) -> Result<(), String> {
+    let tx = connection.transaction().map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_collections", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM collections", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_signals", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_status", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_notes", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repositories", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM app_settings", [])
+        .map_err(|error| error.to_string())?;
     tx.commit().map_err(|error| error.to_string())?;
     Ok(())
 }

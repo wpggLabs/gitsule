@@ -75,7 +75,7 @@ export async function persistRepositoryNote(repositoryId: number, body: string) 
   }
 
   try {
-    await invoke("save_repository_note", { repositoryId, body })
+    await invoke("save_repository_note", { update: { repositoryId, body } })
   } catch {
     // Browser/dev fallback keeps edits in React state.
   }
@@ -87,7 +87,7 @@ export async function persistRepositoryStatus(repositoryId: number, status: Repo
   }
 
   try {
-    await invoke("save_repository_status", { repositoryId, status })
+    await invoke("save_repository_status", { update: { repositoryId, status } })
   } catch {
     // Browser/dev fallback keeps edits in React state.
   }
@@ -113,10 +113,36 @@ export async function persistUserPreference(key: keyof UserPreferences, value: s
   }
 
   try {
-    await invoke("save_user_preference", { key, value })
+    await invoke("save_user_preference", { update: { key, value } })
   } catch {
     // Preferences are not editable in the current UI.
   }
+}
+
+export async function seedDevDatabase(): Promise<RepositoryStoreSnapshot> {
+  const seededSnapshot = getRepositoryStoreSnapshot()
+
+  if (isTauriRuntime()) {
+    try {
+      await invoke("seed_repository_store_snapshot", { snapshot: seededSnapshot })
+    } catch {
+      // Browser/dev fallback returns mock data.
+    }
+  }
+
+  return seededSnapshot
+}
+
+export async function resetDevDatabase(): Promise<RepositoryStoreSnapshot> {
+  if (isTauriRuntime()) {
+    try {
+      await invoke("reset_dev_database")
+    } catch {
+      // Browser/dev fallback returns mock data.
+    }
+  }
+
+  return getRepositoryStoreSnapshot()
 }
 
 function createSnapshot(data: {

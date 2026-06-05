@@ -13,10 +13,14 @@ import {
   getRepositoryStoreSnapshot,
   loadRepositoryStoreSnapshot,
   persistRepositoryNote,
+  persistRepositoryStatus,
+  resetDevDatabase,
+  seedDevDatabase,
   type StatusFilter
 } from "./data/repositories/repositoryStore"
 import type { View } from "./types/navigation"
 import type { Repository } from "./types/repository"
+import type { RepositoryStatus } from "./types/status"
 import { filterRepositories } from "./utils/filters"
 
 function App() {
@@ -72,6 +76,45 @@ function App() {
     setView("detail")
   }
 
+  function applySnapshot(snapshot: typeof repositoryStore) {
+    setRepositoryStore(snapshot)
+    setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+    setSelectedRepoId((currentId) => {
+      return snapshot.repositories.some((repository) => repository.id === currentId)
+        ? currentId
+        : snapshot.repositories[0]?.id ?? currentId
+    })
+  }
+
+  function changeRepositoryStatus(status: RepositoryStatus) {
+    setRepositoryStore((current) => ({
+      ...current,
+      repositories: current.repositories.map((repository) =>
+        repository.id === selectedRepo.id ? { ...repository, status } : repository
+      )
+    }))
+    void persistRepositoryStatus(selectedRepo.id, status)
+  }
+
+  function changeRepositoryNotes(nextNotes: string) {
+    setNotesByRepoId((current) => ({ ...current, [selectedRepo.id]: nextNotes }))
+    setRepositoryStore((current) => ({
+      ...current,
+      repositoryNotes: current.repositoryNotes.map((note) =>
+        note.repositoryId === selectedRepo.id ? { ...note, body: nextNotes, updatedAt: new Date().toISOString() } : note
+      )
+    }))
+    void persistRepositoryNote(selectedRepo.id, nextNotes)
+  }
+
+  function seedDatabase() {
+    void seedDevDatabase().then(applySnapshot)
+  }
+
+  function resetDatabase() {
+    void resetDevDatabase().then(applySnapshot)
+  }
+
   return (
     <AppShell
       activeView={view}
@@ -115,21 +158,19 @@ function App() {
         <RepositoryDetailView
           collections={selectedRepoCollections}
           notes={notesByRepoId[selectedRepo.id] ?? ""}
+          onStatusChange={changeRepositoryStatus}
           repository={selectedRepo}
-          setNotes={(nextNotes) => {
-            setNotesByRepoId((current) => ({ ...current, [selectedRepo.id]: nextNotes }))
-            setRepositoryStore((current) => ({
-              ...current,
-              repositoryNotes: current.repositoryNotes.map((note) =>
-                note.repositoryId === selectedRepo.id ? { ...note, body: nextNotes } : note
-              )
-            }))
-            void persistRepositoryNote(selectedRepo.id, nextNotes)
-          }}
+          setNotes={changeRepositoryNotes}
         />
       )}
 
-      {view === "settings" && <SettingsView preferences={repositoryStore.userPreferences} />}
+      {view === "settings" && (
+        <SettingsView
+          onResetDatabase={resetDatabase}
+          onSeedDatabase={seedDatabase}
+          preferences={repositoryStore.userPreferences}
+        />
+      )}
     </AppShell>
   )
 }

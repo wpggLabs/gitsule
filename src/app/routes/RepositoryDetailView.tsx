@@ -4,16 +4,19 @@ import { PageHeader } from "../../components/ui/PageHeader"
 import { StatusBadge } from "../../components/status/StatusBadge"
 import type { Collection } from "../../types/collection"
 import type { Repository } from "../../types/repository"
+import type { RepositoryStatus } from "../../types/status"
+import { repositoryStatuses, statusLabels } from "../../types/status"
 import { formatShortDate } from "../../utils/dates"
 
 type Props = {
   collections: Collection[]
   notes: string
+  onStatusChange: (status: RepositoryStatus) => void
   repository: Repository
   setNotes: (notes: string) => void
 }
 
-export function RepositoryDetailView({ collections, notes, repository, setNotes }: Props) {
+export function RepositoryDetailView({ collections, notes, onStatusChange, repository, setNotes }: Props) {
   return (
     <section>
       <PageHeader kicker="Repository" title={repository.fullName} />
@@ -22,6 +25,24 @@ export function RepositoryDetailView({ collections, notes, repository, setNotes 
           <div className="flex items-start justify-between gap-4">
             <p className="max-w-3xl text-base leading-7 text-zinc-300">{repository.description}</p>
             <StatusBadge status={repository.status} />
+          </div>
+
+          <div className="mt-5 flex items-center gap-3">
+            <label className="text-sm font-medium text-zinc-300" htmlFor="repository-status">
+              Status
+            </label>
+            <select
+              className="h-9 rounded-md border border-zinc-800 bg-[#080a0f] px-3 text-sm text-zinc-100 outline-none ring-github/40 focus:ring-2"
+              id="repository-status"
+              onChange={(event) => onStatusChange(event.target.value as RepositoryStatus)}
+              value={repository.status}
+            >
+              {repositoryStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="mt-6 grid grid-cols-4 gap-3">
@@ -59,6 +80,7 @@ export function RepositoryDetailView({ collections, notes, repository, setNotes 
               <MetaRow label="License" value={repository.license ?? "None"} />
               <MetaRow label="Homepage" value={repository.homepage ?? "None"} />
               <MetaRow label="GitHub" value={repository.githubUrl} />
+              <MetaRow label="Last Updated" value={formatShortDate(repository.lastUpdated)} />
             </dl>
           </div>
         </aside>
