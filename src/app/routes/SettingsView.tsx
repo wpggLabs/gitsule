@@ -24,6 +24,8 @@ export function SettingsView({
   onTokenChange,
   preferences
 }: Props) {
+  const canImport = Boolean(githubToken.trim() || preferences.githubTokenStored)
+
   return (
     <section>
       <PageHeader kicker="Settings" title="Local-first defaults." />
@@ -34,14 +36,19 @@ export function SettingsView({
         <SettingRow label="Storage" value="SQLite with mock seed fallback" />
         <div className="border-b border-zinc-900 py-4">
           <div className="font-medium text-zinc-100">GitHub Personal Access Token</div>
-          <div className="mt-1 text-sm text-zinc-500">Stored locally in SQLite app settings.</div>
+          <div className="mt-1 text-sm text-zinc-500">
+            Personal V1 only: stored locally in SQLite on this device and only sent to GitHub API requests.
+          </div>
           <input
             className="mt-3 h-10 w-full rounded-md border border-zinc-800 bg-[#080a0f] px-3 text-sm text-zinc-100 outline-none ring-github/40 placeholder:text-zinc-600 focus:ring-2"
             onChange={(event) => onTokenChange(event.target.value)}
-            placeholder="github_pat_..."
+            placeholder={preferences.githubTokenStored ? "Token saved locally" : "github_pat_..."}
             type="password"
             value={githubToken}
           />
+          {preferences.githubTokenStored && !githubToken.trim() && (
+            <div className="mt-2 text-xs text-zinc-500">A token is saved locally. Leave blank to reuse it.</div>
+          )}
         </div>
         <div className="border-b border-zinc-900 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -51,7 +58,7 @@ export function SettingsView({
             </div>
             <button
               className="rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-100 hover:border-github/60 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={importStatus === "importing" || !githubToken.trim()}
+              disabled={importStatus === "importing" || !canImport}
               onClick={onImportStarred}
               type="button"
             >

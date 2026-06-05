@@ -15,7 +15,6 @@ import {
   loadRepositoryStoreSnapshot,
   persistRepositoryNote,
   persistRepositoryStatus,
-  persistUserPreference,
   resetDevDatabase,
   seedDevDatabase,
   type StatusFilter
@@ -34,7 +33,7 @@ function App() {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [notesByRepoId, setNotesByRepoId] = useState(() => getRepositoryNoteDrafts(repositoryStore.repositoryNotes))
-  const [githubToken, setGithubToken] = useState(repositoryStore.userPreferences.githubToken ?? "")
+  const [githubToken, setGithubToken] = useState("")
   const [importStatus, setImportStatus] = useState<"idle" | "importing" | "success" | "error">("idle")
   const [importMessage, setImportMessage] = useState("")
   const [importError, setImportError] = useState("")
@@ -49,7 +48,6 @@ function App() {
 
       setRepositoryStore(snapshot)
       setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
-      setGithubToken(snapshot.userPreferences.githubToken ?? "")
       setSelectedRepoId((currentId) => {
         return snapshot.repositories.some((repository) => repository.id === currentId)
           ? currentId
@@ -86,7 +84,6 @@ function App() {
   function applySnapshot(snapshot: typeof repositoryStore) {
     setRepositoryStore(snapshot)
     setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
-    setGithubToken(snapshot.userPreferences.githubToken ?? "")
     setSelectedRepoId((currentId) => {
       return snapshot.repositories.some((repository) => repository.id === currentId)
         ? currentId
@@ -127,7 +124,6 @@ function App() {
     setGithubToken(token)
     setImportMessage("")
     setImportError("")
-    void persistUserPreference("githubToken", token)
   }
 
   function importStarred() {
@@ -138,8 +134,13 @@ function App() {
     void importStarredRepositories(githubToken)
       .then(({ result, snapshot }) => {
         applySnapshot(snapshot)
+        setGithubToken("")
         setImportStatus("success")
-        setImportMessage(`Imported ${result.imported} new repos. Refreshed ${result.refreshed} existing repos.`)
+        setImportMessage(
+          result.imported === 0 && result.refreshed === 0
+            ? "No starred repositories found for this token."
+            : `Imported ${result.imported} new repos. Refreshed ${result.refreshed} existing repos.`
+        )
       })
       .catch((error: unknown) => {
         setImportStatus("error")

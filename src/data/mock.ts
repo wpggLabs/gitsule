@@ -272,5 +272,5 @@ export const repositoryNotes: RepositoryNote[] = [
 export const userPreferences: UserPreferences = {
   theme: "dark",
   githubUsername: "",
-  githubToken: ""
+  githubTokenStored: false
 }

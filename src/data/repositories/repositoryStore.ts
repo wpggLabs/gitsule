@@ -112,7 +112,7 @@ export async function persistRepositoryCollection(repositoryId: number, collecti
   }
 }
 
-export async function persistUserPreference(key: keyof UserPreferences, value: string) {
+export async function persistUserPreference(key: keyof Omit<UserPreferences, "githubTokenStored">, value: string) {
   if (!isTauriRuntime()) {
     return
   }

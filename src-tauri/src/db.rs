@@ -1,4 +1,6 @@
 use reqwest::blocking::Client;
+use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -68,7 +70,7 @@ pub struct RepositorySignal {
 pub struct UserPreferences {
     theme: String,
     github_username: String,
-    github_token: String,
+    github_token_stored: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -146,13 +148,19 @@ pub fn import_starred_repositories(
     app: AppHandle,
     request: StarredImportRequest,
 ) -> Result<ImportResult, String> {
-    let token = request.token.trim().to_string();
-    if token.is_empty() {
+    let mut connection = open_database(&app)?;
+    let submitted_token = request.token.trim().to_string();
+    let token = if submitted_token.is_empty() {
+        read_setting(&connection, "githubToken")?.unwrap_or_default()
+    } else {
+        save_setting(&connection, "githubToken", &submitted_token)?;
+        submitted_token
+    };
+
+    if token.trim().is_empty() {
         return Err("GitHub token is required.".to_string());
     }
 
-    let mut connection = open_database(&app)?;
-    save_setting(&connection, "githubToken", &token)?;
     let repositories = fetch_starred_repositories(&token)?;
     import_repositories(&mut connection, repositories)
 }
@@ -336,12 +344,11 @@ fn seed_snapshot(connection: &mut Connection, snapshot: StoreSnapshot) -> Result
 
     tx.execute(
         "INSERT INTO app_settings (key, value, updated_at)
-         VALUES ('theme', ?1, ?4), ('githubUsername', ?2, ?4), ('githubToken', ?3, ?4)
+         VALUES ('theme', ?1, ?3), ('githubUsername', ?2, ?3)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
         params![
             snapshot.user_preferences.theme,
             snapshot.user_preferences.github_username,
-            snapshot.user_preferences.github_token,
             now
         ],
     )
@@ -497,8 +504,10 @@ fn fetch_starred_repositories(token: &str) -> Result<Vec<ImportedRepository>, St
             .send()
             .map_err(|error| error.to_string())?;
 
-        if !response.status().is_success() {
-            return Err(format!("GitHub import failed with status {}", response.status()));
+        let status = response.status();
+        let headers = response.headers().clone();
+        if !status.is_success() {
+            return Err(github_api_error_message(status, &headers));
         }
 
         let values: Vec<Value> = response.json().map_err(|error| error.to_string())?;
@@ -518,6 +527,33 @@ fn fetch_starred_repositories(token: &str) -> Result<Vec<ImportedRepository>, St
     }
 
     Ok(repositories)
+}
+
+fn github_api_error_message(status: StatusCode, headers: &HeaderMap) -> String {
+    if is_rate_limited(status, headers) {
+        let reset = headers
+            .get("x-ratelimit-reset")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or("unknown");
+        return format!("GitHub rate limit exceeded. Try again after reset timestamp {reset}.");
+    }
+
+    if status == StatusCode::UNAUTHORIZED {
+        return "GitHub token was rejected. Check the PAT and try again.".to_string();
+    }
+
+    if status == StatusCode::FORBIDDEN {
+        return "GitHub import was forbidden. Check PAT access or GitHub API limits.".to_string();
+    }
+
+    format!("GitHub import failed with status {status}.")
+}
+
+fn is_rate_limited(status: StatusCode, headers: &HeaderMap) -> bool {
+    let remaining = headers
+        .get("x-ratelimit-remaining")
+        .and_then(|value| value.to_str().ok());
+    (status == StatusCode::FORBIDDEN || status == StatusCode::TOO_MANY_REQUESTS) && remaining == Some("0")
 }
 
 fn normalize_starred_repository(value: Value) -> Result<ImportedRepository, String> {
@@ -688,8 +724,10 @@ fn read_repository_signals(connection: &Connection) -> Result<Vec<RepositorySign
 fn read_user_preferences(connection: &Connection) -> Result<UserPreferences, String> {
     let theme = read_setting(connection, "theme")?.unwrap_or_else(|| "dark".to_string());
     let github_username = read_setting(connection, "githubUsername")?.unwrap_or_default();
-    let github_token = read_setting(connection, "githubToken")?.unwrap_or_default();
-    Ok(UserPreferences { theme, github_username, github_token })
+    let github_token_stored = read_setting(connection, "githubToken")?
+        .map(|token| !token.trim().is_empty())
+        .unwrap_or(false);
+    Ok(UserPreferences { theme, github_username, github_token_stored })
 }
 
 fn read_setting(connection: &Connection, key: &str) -> Result<Option<String>, String> {
