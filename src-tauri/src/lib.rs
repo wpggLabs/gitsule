@@ -9,6 +9,8 @@ pub fn run() {
             db::reset_dev_database,
             db::import_starred_repositories,
             db::save_repository_note,
+            db::save_repository_memory,
+            db::mark_repository_revisited,
             db::save_repository_status,
             db::save_repository_collection,
             db::save_user_preference

@@ -1,8 +1,17 @@
-import { collections, repositories, repositoryCollections, repositoryNotes, repositorySignals, userPreferences } from "../mock"
+import {
+  collections,
+  repositories,
+  repositoryCollections,
+  repositoryMemories,
+  repositoryNotes,
+  repositoryRevisits,
+  repositorySignals,
+  userPreferences
+} from "../mock"
 import { invoke } from "@tauri-apps/api/core"
 import type { Collection } from "../../types/collection"
 import type { RepositoryCollection } from "../../types/collection"
-import type { Repository, RepositoryNote, RepositorySignal } from "../../types/repository"
+import type { Repository, RepositoryMemory, RepositoryNote, RepositoryRevisit, RepositorySignal } from "../../types/repository"
 import type { RepositoryStatus } from "../../types/status"
 import { repositoryStatus, repositoryStatuses } from "../../types/status"
 import type { UserPreferences } from "../../types/userPreferences"
@@ -20,13 +29,17 @@ export type RepositoryStoreSnapshot = {
   collectionSummaries: CollectionSummary[]
   collectionCounts: Record<string, number>
   repositoryCollections: RepositoryCollection[]
+  repositoryMemories: RepositoryMemory[]
   repositoryNotes: RepositoryNote[]
+  repositoryRevisits: RepositoryRevisit[]
   repositorySignals: RepositorySignal[]
   userPreferences: UserPreferences
   settingsMetadata: SettingsMetadata
 }
 
 export type RepositoryNoteDrafts = Record<number, string>
+
+export type RepositoryMemoryDrafts = Record<number, { nextAction: string; whySaved: string }>
 
 export type DashboardData = {
   favorites: Repository[]
@@ -61,7 +74,9 @@ export function getRepositoryStoreSnapshot(): RepositoryStoreSnapshot {
     repositories,
     collections,
     repositoryCollections,
+    repositoryMemories,
     repositoryNotes,
+    repositoryRevisits,
     repositorySignals,
     userPreferences
   })
@@ -96,6 +111,31 @@ export async function persistRepositoryNote(repositoryId: number, body: string) 
     await invoke("save_repository_note", { update: { repositoryId, body } })
   } catch {
     // Browser/dev fallback keeps edits in React state.
+  }
+}
+
+export async function persistRepositoryMemory(repositoryId: number, whySaved: string, nextAction: string) {
+  if (!isTauriRuntime()) {
+    return
+  }
+
+  try {
+    await invoke("save_repository_memory", { update: { repositoryId, whySaved, nextAction } })
+  } catch {
+    // Browser/dev fallback keeps edits in React state.
+  }
+}
+
+export async function markRepositoryRevisited(repositoryId: number): Promise<RepositoryStoreSnapshot | null> {
+  if (!isTauriRuntime()) {
+    return null
+  }
+
+  try {
+    await invoke("mark_repository_revisited", { update: { repositoryId } })
+    return loadRepositoryStoreSnapshot()
+  } catch {
+    return null
   }
 }
 
@@ -178,15 +218,19 @@ function createSnapshot(data: {
   repositories: Repository[]
   collections: Collection[]
   repositoryCollections: RepositoryCollection[]
+  repositoryMemories: RepositoryMemory[]
   repositoryNotes: RepositoryNote[]
+  repositoryRevisits: RepositoryRevisit[]
   repositorySignals: RepositorySignal[]
   userPreferences: UserPreferences
   settingsMetadata?: SettingsMetadata
 }): RepositoryStoreSnapshot {
   const normalizedCollections = data.collections.map(normalizeCollection)
   const normalizedRepositoryCollections = data.repositoryCollections.map(normalizeRepositoryCollection)
+  const normalizedRepositoryMemories = data.repositoryMemories.map(normalizeRepositoryMemory)
   const normalizedRepositories = data.repositories.map(normalizeRepository)
   const normalizedRepositoryNotes = data.repositoryNotes.map(normalizeRepositoryNote)
+  const normalizedRepositoryRevisits = data.repositoryRevisits.map(normalizeRepositoryRevisit)
   const normalizedRepositorySignals = data.repositorySignals.map(normalizeRepositorySignal)
   const collectionCounts = getCollectionCounts(normalizedRepositoryCollections)
 
@@ -206,7 +250,9 @@ function createSnapshot(data: {
     })),
     collectionCounts,
     repositoryCollections: normalizedRepositoryCollections,
+    repositoryMemories: normalizedRepositoryMemories,
     repositoryNotes: normalizedRepositoryNotes,
+    repositoryRevisits: normalizedRepositoryRevisits,
     repositorySignals: normalizedRepositorySignals,
     userPreferences: data.userPreferences,
     settingsMetadata: data.settingsMetadata ?? {
@@ -264,6 +310,23 @@ function normalizeRepositoryNote(note: RepositoryNote): RepositoryNote {
     body: note.body || "",
     createdAt: note.createdAt || "",
     updatedAt: note.updatedAt || ""
+  }
+}
+
+function normalizeRepositoryMemory(memory: RepositoryMemory): RepositoryMemory {
+  return {
+    repositoryId: Number(memory.repositoryId),
+    whySaved: memory.whySaved || "",
+    nextAction: memory.nextAction || "",
+    updatedAt: memory.updatedAt || ""
+  }
+}
+
+function normalizeRepositoryRevisit(revisit: RepositoryRevisit): RepositoryRevisit {
+  return {
+    id: revisit.id || `revisit-${revisit.repositoryId}-${revisit.visitedAt}`,
+    repositoryId: Number(revisit.repositoryId),
+    visitedAt: revisit.visitedAt || ""
   }
 }
 
@@ -363,6 +426,29 @@ export function getRepositoryNote(repositoryId: number, notes = repositoryNotes)
 
 export function getRepositoryNoteDrafts(notes = repositoryNotes): RepositoryNoteDrafts {
   return Object.fromEntries(notes.map((note) => [note.repositoryId, note.body]))
+}
+
+export function getRepositoryMemory(repositoryId: number, memories = repositoryMemories): RepositoryMemory {
+  return (
+    memories.find((memory) => memory.repositoryId === repositoryId) ?? {
+      repositoryId,
+      whySaved: "",
+      nextAction: "",
+      updatedAt: ""
+    }
+  )
+}
+
+export function getRepositoryMemoryDrafts(memories = repositoryMemories): RepositoryMemoryDrafts {
+  return Object.fromEntries(
+    memories.map((memory) => [memory.repositoryId, { nextAction: memory.nextAction, whySaved: memory.whySaved }])
+  )
+}
+
+export function getRepositoryRevisits(repositoryId: number, revisits = repositoryRevisits): RepositoryRevisit[] {
+  return revisits
+    .filter((revisit) => revisit.repositoryId === repositoryId)
+    .sort((a, b) => b.visitedAt.localeCompare(a.visitedAt))
 }
 
 function getCollectionCounts(links = repositoryCollections) {

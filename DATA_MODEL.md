@@ -36,6 +36,19 @@ type RepositoryNote = {
   updatedAt: string
 }
 
+type RepositoryMemory = {
+  repositoryId: number
+  whySaved: string
+  nextAction: string
+  updatedAt: string
+}
+
+type RepositoryRevisit = {
+  id: string
+  repositoryId: number
+  visitedAt: string
+}
+
 type RepositorySignal = {
   repositoryId: number
   starredAt: string

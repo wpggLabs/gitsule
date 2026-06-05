@@ -1,5 +1,5 @@
 import type { Collection, RepositoryCollection } from "../types/collection"
-import type { Repository, RepositoryNote, RepositorySignal } from "../types/repository"
+import type { Repository, RepositoryMemory, RepositoryNote, RepositoryRevisit, RepositorySignal } from "../types/repository"
 import type { UserPreferences } from "../types/userPreferences"
 
 export const repositories: Repository[] = [
@@ -267,6 +267,33 @@ export const repositoryNotes: RepositoryNote[] = [
     createdAt: "2026-06-01",
     updatedAt: "2026-06-05"
   }
+]
+
+export const repositoryMemories: RepositoryMemory[] = [
+  {
+    repositoryId: 1,
+    whySaved: "Evaluate as the desktop runtime for Gitsule.",
+    nextAction: "Check updater and file-system APIs.",
+    updatedAt: "2026-06-05"
+  },
+  {
+    repositoryId: 4,
+    whySaved: "Reference for compact local-first product design.",
+    nextAction: "Review data model and admin UI.",
+    updatedAt: "2026-06-05"
+  },
+  {
+    repositoryId: 8,
+    whySaved: "Source of self-hosted projects to revisit monthly.",
+    nextAction: "Pick one tool to test this week.",
+    updatedAt: "2026-06-05"
+  }
+]
+
+export const repositoryRevisits: RepositoryRevisit[] = [
+  { id: "revisit-1-1", repositoryId: 1, visitedAt: "2026-06-02" },
+  { id: "revisit-4-1", repositoryId: 4, visitedAt: "2026-02-10" },
+  { id: "revisit-8-1", repositoryId: 8, visitedAt: "2026-01-03" }
 ]
 
 export const userPreferences: UserPreferences = {

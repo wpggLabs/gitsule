@@ -9,10 +9,14 @@ import { SettingsView } from "./app/routes/SettingsView"
 import {
   getDashboardData,
   getCollectionsForRepository,
+  getRepositoryMemoryDrafts,
   getRepositoryNoteDrafts,
+  getRepositoryRevisits,
   getRepositoryStoreSnapshot,
   importStarredRepositories,
   loadRepositoryStoreSnapshot,
+  markRepositoryRevisited,
+  persistRepositoryMemory,
   persistRepositoryNote,
   persistRepositoryStatus,
   resetDevDatabase,
@@ -20,7 +24,7 @@ import {
   type StatusFilter
 } from "./data/repositories/repositoryStore"
 import type { View } from "./types/navigation"
-import type { Repository } from "./types/repository"
+import type { Repository, RepositoryMemory } from "./types/repository"
 import type { RepositoryStatus } from "./types/status"
 import { filterRepositories } from "./utils/filters"
 
@@ -33,6 +37,7 @@ function App() {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [notesByRepoId, setNotesByRepoId] = useState(() => getRepositoryNoteDrafts(repositoryStore.repositoryNotes))
+  const [memoryByRepoId, setMemoryByRepoId] = useState(() => getRepositoryMemoryDrafts(repositoryStore.repositoryMemories))
   const [githubToken, setGithubToken] = useState("")
   const [importStatus, setImportStatus] = useState<"idle" | "importing" | "success" | "error">("idle")
   const [importMessage, setImportMessage] = useState("")
@@ -55,6 +60,7 @@ function App() {
 
       setRepositoryStore(snapshot)
       setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+      setMemoryByRepoId(getRepositoryMemoryDrafts(snapshot.repositoryMemories))
       setSelectedRepoId((currentId) => {
         return snapshot.repositories.some((repository) => repository.id === currentId)
           ? currentId
@@ -91,6 +97,7 @@ function App() {
   function applySnapshot(snapshot: typeof repositoryStore) {
     setRepositoryStore(snapshot)
     setNotesByRepoId(getRepositoryNoteDrafts(snapshot.repositoryNotes))
+    setMemoryByRepoId(getRepositoryMemoryDrafts(snapshot.repositoryMemories))
     setSelectedRepoId((currentId) => {
       return snapshot.repositories.some((repository) => repository.id === currentId)
         ? currentId
@@ -117,6 +124,41 @@ function App() {
       )
     }))
     void persistRepositoryNote(selectedRepo.id, nextNotes)
+  }
+
+  function changeRepositoryMemory(field: "nextAction" | "whySaved", value: string) {
+    const currentMemory = memoryByRepoId[selectedRepo.id] ?? { nextAction: "", whySaved: "" }
+    const nextMemory = { ...currentMemory, [field]: value }
+    setMemoryByRepoId((current) => ({ ...current, [selectedRepo.id]: nextMemory }))
+    setRepositoryStore((current) => ({
+      ...current,
+      repositoryMemories: upsertRepositoryMemory(current.repositoryMemories, selectedRepo.id, nextMemory.whySaved, nextMemory.nextAction)
+    }))
+    void persistRepositoryMemory(selectedRepo.id, nextMemory.whySaved, nextMemory.nextAction)
+  }
+
+  function markSelectedRepositoryRevisited() {
+    const visitedAt = Math.floor(Date.now() / 1000).toString()
+    setRepositoryStore((current) => ({
+      ...current,
+      repositoryRevisits: [
+        { id: `revisit-${selectedRepo.id}-${Date.now()}`, repositoryId: selectedRepo.id, visitedAt },
+        ...current.repositoryRevisits
+      ],
+      repositorySignals: current.repositorySignals.some((signal) => signal.repositoryId === selectedRepo.id)
+        ? current.repositorySignals.map((signal) =>
+            signal.repositoryId === selectedRepo.id ? { ...signal, lastVisitedAt: visitedAt } : signal
+          )
+        : [
+            ...current.repositorySignals,
+            { repositoryId: selectedRepo.id, starredAt: selectedRepo.lastUpdated, lastVisitedAt: visitedAt }
+          ]
+    }))
+    void markRepositoryRevisited(selectedRepo.id).then((snapshot) => {
+      if (snapshot) {
+        applySnapshot(snapshot)
+      }
+    })
   }
 
   function seedDatabase() {
@@ -200,9 +242,14 @@ function App() {
       {view === "detail" && (
         <RepositoryDetailView
           collections={selectedRepoCollections}
+          lastOpenedAt={repositoryStore.repositorySignals.find((signal) => signal.repositoryId === selectedRepo.id)?.lastVisitedAt ?? null}
+          memory={memoryByRepoId[selectedRepo.id] ?? { nextAction: "", whySaved: "" }}
           notes={notesByRepoId[selectedRepo.id] ?? ""}
+          onMarkRevisited={markSelectedRepositoryRevisited}
+          onMemoryChange={changeRepositoryMemory}
           onStatusChange={changeRepositoryStatus}
           repository={selectedRepo}
+          revisits={getRepositoryRevisits(selectedRepo.id, repositoryStore.repositoryRevisits)}
           setNotes={changeRepositoryNotes}
         />
       )}
@@ -223,6 +270,19 @@ function App() {
       )}
     </AppShell>
   )
+}
+
+function upsertRepositoryMemory(
+  memories: RepositoryMemory[],
+  repositoryId: number,
+  whySaved: string,
+  nextAction: string
+): RepositoryMemory[] {
+  const updatedAt = new Date().toISOString()
+  const nextMemory = { repositoryId, whySaved, nextAction, updatedAt }
+  return memories.some((memory) => memory.repositoryId === repositoryId)
+    ? memories.map((memory) => (memory.repositoryId === repositoryId ? nextMemory : memory))
+    : [...memories, nextMemory]
 }
 
 export default App

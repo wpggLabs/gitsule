@@ -3,8 +3,9 @@ export function formatShortDate(value?: string | null) {
     return "Unknown"
   }
 
-  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value
-  const date = new Date(normalized)
+  const date = /^\d+$/.test(value)
+    ? new Date(Number(value) * 1000)
+    : new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value)
 
   if (Number.isNaN(date.getTime())) {
     return "Unknown"

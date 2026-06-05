@@ -59,6 +59,23 @@ pub struct RepositoryNote {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RepositoryMemory {
+    repository_id: i64,
+    why_saved: String,
+    next_action: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryRevisit {
+    id: String,
+    repository_id: i64,
+    visited_at: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RepositorySignal {
     repository_id: i64,
     starred_at: String,
@@ -87,7 +104,9 @@ pub struct StoreSnapshot {
     repositories: Vec<Repository>,
     collections: Vec<Collection>,
     repository_collections: Vec<RepositoryCollection>,
+    repository_memories: Vec<RepositoryMemory>,
     repository_notes: Vec<RepositoryNote>,
+    repository_revisits: Vec<RepositoryRevisit>,
     repository_signals: Vec<RepositorySignal>,
     user_preferences: UserPreferences,
     settings_metadata: SettingsMetadata,
@@ -112,6 +131,20 @@ pub struct CollectionAssignment {
 pub struct NoteUpdate {
     pub repository_id: i64,
     pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryUpdate {
+    pub repository_id: i64,
+    pub why_saved: String,
+    pub next_action: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisitUpdate {
+    pub repository_id: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -199,6 +232,45 @@ pub fn save_repository_note(app: AppHandle, update: NoteUpdate) -> Result<(), St
 }
 
 #[tauri::command]
+pub fn save_repository_memory(app: AppHandle, update: MemoryUpdate) -> Result<(), String> {
+    let connection = open_database(&app)?;
+    connection
+        .execute(
+            "INSERT INTO repository_memory (repository_id, why_saved, next_action, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(repository_id) DO UPDATE SET
+               why_saved = excluded.why_saved,
+               next_action = excluded.next_action,
+               updated_at = excluded.updated_at",
+            params![update.repository_id, update.why_saved, update.next_action, current_timestamp()],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn mark_repository_revisited(app: AppHandle, update: RevisitUpdate) -> Result<(), String> {
+    let connection = open_database(&app)?;
+    let now = current_timestamp();
+    connection
+        .execute(
+            "INSERT INTO repository_revisits (id, repository_id, visited_at)
+             VALUES (?1, ?2, ?3)",
+            params![format!("revisit-{}-{}", update.repository_id, current_timestamp_nanos()), update.repository_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO repository_signals (repository_id, starred_at, last_visited_at)
+             VALUES (?1, ?2, ?2)
+             ON CONFLICT(repository_id) DO UPDATE SET last_visited_at = excluded.last_visited_at",
+            params![update.repository_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn save_repository_status(app: AppHandle, update: StatusUpdate) -> Result<(), String> {
     let connection = open_database(&app)?;
     let now = current_timestamp();
@@ -253,7 +325,9 @@ fn read_snapshot(connection: &Connection) -> Result<StoreSnapshot, String> {
         repositories: read_repositories(connection)?,
         collections: read_collections(connection)?,
         repository_collections: read_repository_collections(connection)?,
+        repository_memories: read_repository_memories(connection)?,
         repository_notes: read_repository_notes(connection)?,
+        repository_revisits: read_repository_revisits(connection)?,
         repository_signals: read_repository_signals(connection)?,
         user_preferences: read_user_preferences(connection)?,
         settings_metadata: read_settings_metadata(connection)?,
@@ -326,6 +400,28 @@ fn seed_snapshot(connection: &mut Connection, snapshot: StoreSnapshot) -> Result
         .map_err(|error| error.to_string())?;
     }
 
+    for memory in snapshot.repository_memories {
+        tx.execute(
+            "INSERT INTO repository_memory (repository_id, why_saved, next_action, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(repository_id) DO UPDATE SET
+               why_saved = excluded.why_saved,
+               next_action = excluded.next_action,
+               updated_at = excluded.updated_at",
+            params![memory.repository_id, memory.why_saved, memory.next_action, memory.updated_at],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    for revisit in snapshot.repository_revisits {
+        tx.execute(
+            "INSERT OR IGNORE INTO repository_revisits (id, repository_id, visited_at)
+             VALUES (?1, ?2, ?3)",
+            params![revisit.id, revisit.repository_id, revisit.visited_at],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
     for signal in snapshot.repository_signals {
         tx.execute(
             "INSERT INTO repository_signals (repository_id, starred_at, last_visited_at)
@@ -386,6 +482,10 @@ fn clear_database(connection: &mut Connection) -> Result<(), String> {
     tx.execute("DELETE FROM repository_signals", [])
         .map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM repository_status", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_revisits", [])
+        .map_err(|error| error.to_string())?;
+    tx.execute("DELETE FROM repository_memory", [])
         .map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM repository_notes", [])
         .map_err(|error| error.to_string())?;
@@ -749,6 +849,39 @@ fn read_repository_notes(connection: &Connection) -> Result<Vec<RepositoryNote>,
     rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
 }
 
+fn read_repository_memories(connection: &Connection) -> Result<Vec<RepositoryMemory>, String> {
+    let mut statement = connection
+        .prepare("SELECT repository_id, why_saved, next_action, updated_at FROM repository_memory")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(RepositoryMemory {
+                repository_id: row.get(0)?,
+                why_saved: row.get(1)?,
+                next_action: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+}
+
+fn read_repository_revisits(connection: &Connection) -> Result<Vec<RepositoryRevisit>, String> {
+    let mut statement = connection
+        .prepare("SELECT id, repository_id, visited_at FROM repository_revisits ORDER BY visited_at DESC")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(RepositoryRevisit {
+                id: row.get(0)?,
+                repository_id: row.get(1)?,
+                visited_at: row.get(2)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+}
+
 fn read_repository_signals(connection: &Connection) -> Result<Vec<RepositorySignal>, String> {
     let mut statement = connection
         .prepare("SELECT repository_id, starred_at, last_visited_at FROM repository_signals")
@@ -804,5 +937,12 @@ fn current_timestamp() -> String {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string())
+}
+
+fn current_timestamp_nanos() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos().to_string())
         .unwrap_or_else(|_| "0".to_string())
 }

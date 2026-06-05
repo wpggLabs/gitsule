@@ -31,3 +31,16 @@ export type RepositoryNote = {
   createdAt: string
   updatedAt: string
 }
+
+export type RepositoryMemory = {
+  repositoryId: number
+  whySaved: string
+  nextAction: string
+  updatedAt: string
+}
+
+export type RepositoryRevisit = {
+  id: string
+  repositoryId: number
+  visitedAt: string
+}

@@ -28,6 +28,21 @@ CREATE TABLE IF NOT EXISTS repository_notes (
   FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS repository_memory (
+  repository_id INTEGER PRIMARY KEY,
+  why_saved TEXT NOT NULL DEFAULT '',
+  next_action TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS repository_revisits (
+  id TEXT PRIMARY KEY,
+  repository_id INTEGER NOT NULL,
+  visited_at TEXT NOT NULL,
+  FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS repository_status (
   repository_id INTEGER PRIMARY KEY,
   status TEXT NOT NULL CHECK (status IN ('want_to_try', 'testing', 'installed', 'favorite', 'abandoned')),
