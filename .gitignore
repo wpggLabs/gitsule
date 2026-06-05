@@ -1,0 +1,41 @@
+
+---
+
+### .gitignore
+
+```gitignore
+# dependencies
+node_modules
+
+# builds
+dist
+build
+out
+
+# tauri
+src-tauri/target
+
+# database
+*.db
+*.sqlite
+*.sqlite3
+
+# env
+.env
+.env.local
+
+# logs
+logs
+*.log
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# cache
+.cache
+.temp
