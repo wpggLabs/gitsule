@@ -1,5 +1,6 @@
 import type { Collection, RepositoryCollection } from "../types/collection"
-import type { Repository } from "../types/repository"
+import type { Repository, RepositoryNote, RepositorySignal } from "../types/repository"
+import type { UserPreferences } from "../types/userPreferences"
 
 export const repositories: Repository[] = [
   {
@@ -17,8 +18,7 @@ export const repositories: Repository[] = [
     homepage: "https://tauri.app",
     githubUrl: "https://github.com/tauri-apps/tauri",
     lastUpdated: "2026-05-31",
-    status: "testing",
-    notes: "Strong candidate for the desktop shell. Verify updater story later."
+    status: "testing"
   },
   {
     id: 2,
@@ -35,8 +35,7 @@ export const repositories: Repository[] = [
     homepage: "https://react.dev",
     githubUrl: "https://github.com/facebook/react",
     lastUpdated: "2026-05-28",
-    status: "installed",
-    notes: "Default UI layer. Keep components simple and local."
+    status: "installed"
   },
   {
     id: 3,
@@ -53,8 +52,7 @@ export const repositories: Repository[] = [
     homepage: "https://supabase.com",
     githubUrl: "https://github.com/supabase/supabase",
     lastUpdated: "2026-05-25",
-    status: "want_to_try",
-    notes: "Useful reference, not part of Gitsule V1."
+    status: "want_to_try"
   },
   {
     id: 4,
@@ -71,8 +69,7 @@ export const repositories: Repository[] = [
     homepage: "https://pocketbase.io",
     githubUrl: "https://github.com/pocketbase/pocketbase",
     lastUpdated: "2026-04-18",
-    status: "favorite",
-    notes: "Great example of simple local-first product posture."
+    status: "favorite"
   },
   {
     id: 5,
@@ -89,8 +86,7 @@ export const repositories: Repository[] = [
     homepage: null,
     githubUrl: "https://github.com/example/old-cli-starter",
     lastUpdated: "2023-11-02",
-    status: "abandoned",
-    notes: "Keep for reference only. Probably not worth testing."
+    status: "abandoned"
   },
   {
     id: 6,
@@ -107,8 +103,7 @@ export const repositories: Repository[] = [
     homepage: null,
     githubUrl: "https://github.com/jesseduffield/lazygit",
     lastUpdated: "2026-05-19",
-    status: "want_to_try",
-    notes: "Worth testing for keyboard-first workflow inspiration."
+    status: "want_to_try"
   },
   {
     id: 7,
@@ -125,8 +120,7 @@ export const repositories: Repository[] = [
     homepage: null,
     githubUrl: "https://github.com/obsidianmd/obsidian-sample-plugin",
     lastUpdated: "2026-03-09",
-    status: "testing",
-    notes: "Useful reference for personal knowledge workflows."
+    status: "testing"
   },
   {
     id: 8,
@@ -143,8 +137,7 @@ export const repositories: Repository[] = [
     homepage: "https://awesome-selfhosted.net",
     githubUrl: "https://github.com/awesome-selfhosted/awesome-selfhosted",
     lastUpdated: "2026-05-06",
-    status: "favorite",
-    notes: "Prime rediscovery source. Review monthly."
+    status: "favorite"
   },
   {
     id: 9,
@@ -161,8 +154,7 @@ export const repositories: Repository[] = [
     homepage: null,
     githubUrl: "https://github.com/example/retired-ui-kit",
     lastUpdated: "2022-08-14",
-    status: "abandoned",
-    notes: ""
+    status: "abandoned"
   }
 ]
 
@@ -199,14 +191,85 @@ export const repositoryCollections: RepositoryCollection[] = [
   { repositoryId: 9, collectionId: "frontend" }
 ]
 
-export const repositorySignals: Record<number, { starredAt: string; lastVisitedAt: string | null }> = {
-  1: { starredAt: "2026-05-30", lastVisitedAt: "2026-06-02" },
-  2: { starredAt: "2026-05-24", lastVisitedAt: "2026-06-01" },
-  3: { starredAt: "2026-05-18", lastVisitedAt: null },
-  4: { starredAt: "2025-12-09", lastVisitedAt: "2026-02-10" },
-  5: { starredAt: "2024-03-14", lastVisitedAt: null },
-  6: { starredAt: "2026-06-01", lastVisitedAt: null },
-  7: { starredAt: "2026-04-11", lastVisitedAt: "2026-04-18" },
-  8: { starredAt: "2025-09-28", lastVisitedAt: "2026-01-03" },
-  9: { starredAt: "2023-01-21", lastVisitedAt: null }
+export const repositorySignals: RepositorySignal[] = [
+  { repositoryId: 1, starredAt: "2026-05-30", lastVisitedAt: "2026-06-02" },
+  { repositoryId: 2, starredAt: "2026-05-24", lastVisitedAt: "2026-06-01" },
+  { repositoryId: 3, starredAt: "2026-05-18", lastVisitedAt: null },
+  { repositoryId: 4, starredAt: "2025-12-09", lastVisitedAt: "2026-02-10" },
+  { repositoryId: 5, starredAt: "2024-03-14", lastVisitedAt: null },
+  { repositoryId: 6, starredAt: "2026-06-01", lastVisitedAt: null },
+  { repositoryId: 7, starredAt: "2026-04-11", lastVisitedAt: "2026-04-18" },
+  { repositoryId: 8, starredAt: "2025-09-28", lastVisitedAt: "2026-01-03" },
+  { repositoryId: 9, starredAt: "2023-01-21", lastVisitedAt: null }
+]
+
+export const repositoryNotes: RepositoryNote[] = [
+  {
+    id: "note-1",
+    repositoryId: 1,
+    body: "Strong candidate for the desktop shell. Verify updater story later.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-2",
+    repositoryId: 2,
+    body: "Default UI layer. Keep components simple and local.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-3",
+    repositoryId: 3,
+    body: "Useful reference, not part of Gitsule V1.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-4",
+    repositoryId: 4,
+    body: "Great example of simple local-first product posture.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-5",
+    repositoryId: 5,
+    body: "Keep for reference only. Probably not worth testing.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-6",
+    repositoryId: 6,
+    body: "Worth testing for keyboard-first workflow inspiration.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-7",
+    repositoryId: 7,
+    body: "Useful reference for personal knowledge workflows.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-8",
+    repositoryId: 8,
+    body: "Prime rediscovery source. Review monthly.",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  },
+  {
+    id: "note-9",
+    repositoryId: 9,
+    body: "",
+    createdAt: "2026-06-01",
+    updatedAt: "2026-06-05"
+  }
+]
+
+export const userPreferences: UserPreferences = {
+  theme: "dark",
+  githubUsername: ""
 }

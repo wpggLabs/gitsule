@@ -16,5 +16,18 @@ export type Repository = {
   githubUrl: string
   lastUpdated: string
   status: RepositoryStatus
-  notes: string
+}
+
+export type RepositorySignal = {
+  repositoryId: number
+  starredAt: string
+  lastVisitedAt: string | null
+}
+
+export type RepositoryNote = {
+  id: string
+  repositoryId: number
+  body: string
+  createdAt: string
+  updatedAt: string
 }

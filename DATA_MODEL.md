@@ -1,8 +1,15 @@
 # Data Model
 
-## Repository
+Repository represents GitHub/repository metadata only. Personal user data lives in separate models.
 
 ```ts
+type RepositoryStatus =
+  | "want_to_try"
+  | "testing"
+  | "installed"
+  | "favorite"
+  | "abandoned"
+
 type Repository = {
   id: number
   githubId: number
@@ -18,15 +25,21 @@ type Repository = {
   homepage: string | null
   githubUrl: string
   lastUpdated: string
+  status: RepositoryStatus
+}
 
-  status:
-    | "want_to_try"
-    | "testing"
-    | "installed"
-    | "favorite"
-    | "abandoned"
+type RepositoryNote = {
+  id: string
+  repositoryId: number
+  body: string
+  createdAt: string
+  updatedAt: string
+}
 
-  notes: string
+type RepositorySignal = {
+  repositoryId: number
+  starredAt: string
+  lastVisitedAt: string | null
 }
 
 type Collection = {
@@ -35,7 +48,6 @@ type Collection = {
   description: string
   color: string
 }
-
 
 type RepositoryCollection = {
   repositoryId: number
@@ -46,3 +58,4 @@ type UserPreferences = {
   theme: "dark" | "light"
   githubUsername: string
 }
+```
