@@ -1,7 +1,7 @@
-import type { Collection } from "../../types/collection"
+import type { CollectionSummary } from "../../data/repositories/repositoryStore"
 
 type Props = {
-  collection: Collection
+  collection: CollectionSummary
   repoCount: number
 }
 
@@ -18,6 +18,20 @@ export function CollectionCard({ collection, repoCount }: Props) {
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-zinc-400">{collection.description}</p>
+      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-zinc-900 pt-4">
+        <CollectionMetric label="Forgotten" value={collection.forgottenCount} />
+        <CollectionMetric label="Unvisited" value={collection.unvisitedCount} />
+        <CollectionMetric label="Need Notes" value={collection.needsNotesCount} />
+      </div>
     </article>
+  )
+}
+
+function CollectionMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="font-mono text-base text-zinc-100">{value}</div>
+      <div className="mt-1 text-xs text-zinc-500">{label}</div>
+    </div>
   )
 }

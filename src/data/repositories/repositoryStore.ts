@@ -8,7 +8,10 @@ import { repositoryStatus, repositoryStatuses } from "../../types/status"
 import type { UserPreferences } from "../../types/userPreferences"
 
 export type CollectionSummary = Collection & {
+  forgottenCount: number
+  needsNotesCount: number
   repoCount: number
+  unvisitedCount: number
 }
 
 export type RepositoryStoreSnapshot = {
@@ -30,6 +33,9 @@ export type DashboardData = {
   recentlyUpdated: Repository[]
   recentlyStarred: Repository[]
   forgottenRepositories: Repository[]
+  importantButStale: Repository[]
+  needsNotesRepositories: Repository[]
+  savedLongAgoUpdatedRecently: Repository[]
   unvisitedCount: number
   needsNotesCount: number
   testingCount: number
@@ -179,19 +185,29 @@ function createSnapshot(data: {
 }): RepositoryStoreSnapshot {
   const normalizedCollections = data.collections.map(normalizeCollection)
   const normalizedRepositoryCollections = data.repositoryCollections.map(normalizeRepositoryCollection)
+  const normalizedRepositories = data.repositories.map(normalizeRepository)
+  const normalizedRepositoryNotes = data.repositoryNotes.map(normalizeRepositoryNote)
+  const normalizedRepositorySignals = data.repositorySignals.map(normalizeRepositorySignal)
   const collectionCounts = getCollectionCounts(normalizedRepositoryCollections)
 
   return {
-    repositories: data.repositories.map(normalizeRepository),
+    repositories: normalizedRepositories,
     collections: normalizedCollections,
     collectionSummaries: normalizedCollections.map((collection) => ({
       ...collection,
+      ...getCollectionRediscoveryCounts(
+        collection.id,
+        normalizedRepositories,
+        normalizedRepositoryCollections,
+        normalizedRepositoryNotes,
+        normalizedRepositorySignals
+      ),
       repoCount: collectionCounts[collection.id] ?? 0
     })),
     collectionCounts,
     repositoryCollections: normalizedRepositoryCollections,
-    repositoryNotes: data.repositoryNotes.map(normalizeRepositoryNote),
-    repositorySignals: data.repositorySignals.map(normalizeRepositorySignal),
+    repositoryNotes: normalizedRepositoryNotes,
+    repositorySignals: normalizedRepositorySignals,
     userPreferences: data.userPreferences,
     settingsMetadata: data.settingsMetadata ?? {
       importedRepositoryCount: 0,
@@ -221,8 +237,8 @@ function normalizeRepository(repository: Repository): Repository {
   }
 }
 
-function normalizeRepositoryStatus(status: RepositoryStatus): RepositoryStatus {
-  return repositoryStatuses.includes(status) ? status : repositoryStatus.wantToTry
+function normalizeRepositoryStatus(status: unknown): RepositoryStatus {
+  return repositoryStatuses.includes(status as RepositoryStatus) ? status as RepositoryStatus : repositoryStatus.wantToTry
 }
 
 function normalizeCollection(collection: Collection): Collection {
@@ -274,17 +290,41 @@ export function getDashboardData(snapshot = getRepositoryStoreSnapshot()): Dashb
     })
     .sort((a, b) => getRepositorySignal(a, snapshot.repositorySignals).starredAt.localeCompare(getRepositorySignal(b, snapshot.repositorySignals).starredAt))
     .slice(0, 4)
+  const needsNotesRepositories = snapshot.repositories
+    .filter((repository) => !getRepositoryNote(repository.id, snapshot.repositoryNotes).body.trim())
+    .slice(0, 4)
+  const needsNotesCount = snapshot.repositories.filter((repository) => !getRepositoryNote(repository.id, snapshot.repositoryNotes).body.trim()).length
+  const savedLongAgoUpdatedRecently = [...snapshot.repositories]
+    .filter((repository) => {
+      const signal = getRepositorySignal(repository, snapshot.repositorySignals)
+      return isOlderThanDays(signal.starredAt, 120) && isWithinDays(repository.lastUpdated, 45)
+    })
+    .sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated))
+    .slice(0, 4)
+  const importantButStale = [...snapshot.repositories]
+    .filter((repository) => {
+      const signal = getRepositorySignal(repository, snapshot.repositorySignals)
+      return (
+        (repository.status === repositoryStatus.favorite || repository.status === repositoryStatus.testing) &&
+        (!signal.lastVisitedAt || isOlderThanDays(signal.lastVisitedAt, 90))
+      )
+    })
+    .sort((a, b) => getRepositorySignal(a, snapshot.repositorySignals).starredAt.localeCompare(getRepositorySignal(b, snapshot.repositorySignals).starredAt))
+    .slice(0, 4)
 
   return {
     favorites,
     recentlyUpdated,
     recentlyStarred,
     forgottenRepositories,
+    importantButStale,
+    needsNotesRepositories,
+    savedLongAgoUpdatedRecently,
     unvisitedCount: snapshot.repositories.filter((repository) => !getRepositorySignal(repository, snapshot.repositorySignals).lastVisitedAt).length,
-    needsNotesCount: snapshot.repositories.filter((repository) => !getRepositoryNote(repository.id, snapshot.repositoryNotes).body.trim()).length,
+    needsNotesCount,
     testingCount: snapshot.repositories.filter((repository) => repository.status === repositoryStatus.testing).length,
     bestRevisit: forgottenRepositories[0] ?? null,
-    mostSavedCollection: [...snapshot.collectionSummaries].sort((a, b) => b.repoCount - a.repoCount)[0] ?? null
+    mostSavedCollection: [...snapshot.collectionSummaries].sort((a, b) => b.forgottenCount - a.forgottenCount)[0] ?? null
   }
 }
 
@@ -330,6 +370,47 @@ function getCollectionCounts(links = repositoryCollections) {
     current[link.collectionId] = (current[link.collectionId] ?? 0) + 1
     return current
   }, {})
+}
+
+function getCollectionRediscoveryCounts(
+  collectionId: string,
+  availableRepositories: Repository[],
+  links: RepositoryCollection[],
+  notes: RepositoryNote[],
+  signals: RepositorySignal[]
+) {
+  const repositoryIds = new Set(
+    links.filter((link) => link.collectionId === collectionId).map((link) => link.repositoryId)
+  )
+  const collectionRepositories = availableRepositories.filter((repository) => repositoryIds.has(repository.id))
+
+  return {
+    forgottenCount: collectionRepositories.filter((repository) => {
+      const signal = getRepositorySignal(repository, signals)
+      return repository.status !== repositoryStatus.abandoned && (!signal.lastVisitedAt || isOlderThanDays(signal.lastVisitedAt, 90))
+    }).length,
+    needsNotesCount: collectionRepositories.filter((repository) => !getRepositoryNote(repository.id, notes).body.trim()).length,
+    unvisitedCount: collectionRepositories.filter((repository) => !getRepositorySignal(repository, signals).lastVisitedAt).length
+  }
+}
+
+function isOlderThanDays(value: string | null, days: number) {
+  const timestamp = parseDate(value)
+  return timestamp !== null && Date.now() - timestamp > days * 24 * 60 * 60 * 1000
+}
+
+function isWithinDays(value: string | null, days: number) {
+  const timestamp = parseDate(value)
+  return timestamp !== null && Date.now() - timestamp <= days * 24 * 60 * 60 * 1000
+}
+
+function parseDate(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value)
+  return Number.isNaN(date.getTime()) ? null : date.getTime()
 }
 
 function isTauriRuntime() {

@@ -3,8 +3,8 @@ import { DiscoveryRow } from "../../components/repo/DiscoveryRow"
 import { PageHeader } from "../../components/ui/PageHeader"
 import { StatCard } from "../../components/ui/StatCard"
 import type { CollectionSummary, DashboardData } from "../../data/repositories/repositoryStore"
-import { getRepositorySignal } from "../../data/repositories/repositoryStore"
-import type { Repository } from "../../types/repository"
+import { getRepositoryNote, getRepositorySignal } from "../../data/repositories/repositoryStore"
+import type { Repository, RepositoryNote, RepositorySignal } from "../../types/repository"
 import type { View } from "../../types/navigation"
 import { formatShortDate } from "../../utils/dates"
 
@@ -14,9 +14,19 @@ type Props = {
   onNavigate: (view: View) => void
   onOpenRepository: (repository: Repository) => void
   repositoryCount: number
+  repositoryNotes: RepositoryNote[]
+  repositorySignals: RepositorySignal[]
 }
 
-export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRepository, repositoryCount }: Props) {
+export function HomeView({
+  collectionSummaries,
+  dashboard,
+  onNavigate,
+  onOpenRepository,
+  repositoryCount,
+  repositoryNotes,
+  repositorySignals
+}: Props) {
   return (
     <section>
       <div className="mb-5 flex items-end justify-between gap-6">
@@ -31,8 +41,8 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
         <StatCard label="Unvisited" value={dashboard.unvisitedCount.toString()} />
         <StatCard label="Need Notes" value={dashboard.needsNotesCount.toString()} />
         <StatCard label="Favorites" value={dashboard.favorites.length.toString()} />
-        <StatCard label="Testing" value={dashboard.testingCount.toString()} />
-        <StatCard label="Collections" value={collectionSummaries.length.toString()} />
+        <StatCard label="Old + Updated" value={dashboard.savedLongAgoUpdatedRecently.length.toString()} />
+        <StatCard label="Stale Important" value={dashboard.importantButStale.length.toString()} />
       </div>
 
       <div className="mt-5 grid grid-cols-[1.35fr_0.65fr] gap-5">
@@ -42,10 +52,10 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
               {dashboard.forgottenRepositories.map((repository) => (
                 <DiscoveryRow
                   key={repository.id}
-                  meta={`Starred ${formatShortDate(getRepositorySignal(repository).starredAt)}`}
+                  meta={`Starred ${formatShortDate(getRepositorySignal(repository, repositorySignals).starredAt)}`}
                   onOpen={() => onOpenRepository(repository)}
                   repository={repository}
-                  signal={formatLastVisited(repository)}
+                  signal={formatLastVisited(repository, repositorySignals)}
                 />
               ))}
             </div>
@@ -58,7 +68,7 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
                   <DiscoveryRow
                     compact
                     key={repository.id}
-                    meta={`Starred ${formatShortDate(getRepositorySignal(repository).starredAt)}`}
+                    meta={`Starred ${formatShortDate(getRepositorySignal(repository, repositorySignals).starredAt)}`}
                     onOpen={() => onOpenRepository(repository)}
                     repository={repository}
                     signal={repository.language}
@@ -67,16 +77,16 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
               </div>
             </DashboardPanel>
 
-            <DashboardPanel title="Recently Updated">
+            <DashboardPanel title="Saved Long Ago, Updated Recently">
               <div className="space-y-2">
-                {dashboard.recentlyUpdated.map((repository) => (
+                {dashboard.savedLongAgoUpdatedRecently.map((repository) => (
                   <DiscoveryRow
                     compact
                     key={repository.id}
                     meta={`Updated ${formatShortDate(repository.lastUpdated)}`}
                     onOpen={() => onOpenRepository(repository)}
                     repository={repository}
-                    signal={`${repository.stars.toLocaleString()} stars`}
+                    signal={`Saved ${formatShortDate(getRepositorySignal(repository, repositorySignals).starredAt)}`}
                   />
                 ))}
               </div>
@@ -99,14 +109,14 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
                       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: collection.color }} />
                       {collection.name}
                     </span>
-                    <span className="font-mono text-sm text-zinc-400">{collection.repoCount}</span>
+                    <span className="font-mono text-sm text-zinc-400">{collection.forgottenCount} forgotten</span>
                   </div>
                   <div className="mt-2 h-1.5 rounded-full bg-zinc-800">
                     <div
                       className="h-1.5 rounded-full"
                       style={{
                         backgroundColor: collection.color,
-                        width: `${Math.max(14, (collection.repoCount / repositoryCount) * 100)}%`
+                        width: `${Math.max(14, (collection.forgottenCount / Math.max(1, repositoryCount)) * 100)}%`
                       }}
                     />
                   </div>
@@ -118,22 +128,22 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
           <DashboardPanel title="Discovery Insights">
             <div className="space-y-3 text-sm">
               <InsightLine label="Best revisit" value={dashboard.bestRevisit?.fullName ?? "None"} />
-              <InsightLine label="Most saved area" value={dashboard.mostSavedCollection?.name ?? "None"} />
-              <InsightLine label="Cleanup candidate" value="Abandoned repos" />
-              <InsightLine label="Fast win" value={`${dashboard.needsNotesCount} repo needs notes`} />
+              <InsightLine label="Add context" value={`${dashboard.needsNotesCount} repos need notes`} />
+              <InsightLine label="Reopen first" value={dashboard.importantButStale[0]?.fullName ?? "None"} />
+              <InsightLine label="Collection to review" value={dashboard.mostSavedCollection?.name ?? "None"} />
             </div>
           </DashboardPanel>
 
-          <DashboardPanel title="Continue Exploring">
+          <DashboardPanel title="Important but Stale">
             <div className="space-y-2">
-              {dashboard.favorites.slice(0, 3).map((repository) => (
+              {dashboard.importantButStale.map((repository) => (
                 <DiscoveryRow
                   compact
                   key={repository.id}
-                  meta={repository.language}
+                  meta={formatLastVisited(repository, repositorySignals)}
                   onOpen={() => onOpenRepository(repository)}
                   repository={repository}
-                  signal="Favorite"
+                  signal={getRepositoryNote(repository.id, repositoryNotes).body.trim() ? "Has notes" : "Needs notes"}
                 />
               ))}
             </div>
@@ -144,8 +154,8 @@ export function HomeView({ collectionSummaries, dashboard, onNavigate, onOpenRep
   )
 }
 
-function formatLastVisited(repository: Repository) {
-  const lastVisitedAt = getRepositorySignal(repository).lastVisitedAt
+function formatLastVisited(repository: Repository, signals: RepositorySignal[]) {
+  const lastVisitedAt = getRepositorySignal(repository, signals).lastVisitedAt
   return lastVisitedAt ? `Last opened ${formatShortDate(lastVisitedAt)}` : "Never opened"
 }
 

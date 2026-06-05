@@ -39,19 +39,10 @@ function App() {
   const [importError, setImportError] = useState("")
   const settingsStats = useMemo(
     () => ({
-      collectionCount: repositoryStore.collections.length,
-      databaseSizeBytes: repositoryStore.settingsMetadata.databaseSizeBytes,
-      importedRepositoryCount: repositoryStore.settingsMetadata.importedRepositoryCount,
       lastImportAt: repositoryStore.settingsMetadata.lastImportAt,
-      notesCount: repositoryStore.repositoryNotes.filter((note) => note.body.trim()).length,
       repositoryCount: repositoryStore.repositories.length
     }),
-    [
-      repositoryStore.collections.length,
-      repositoryStore.repositoryNotes,
-      repositoryStore.repositories.length,
-      repositoryStore.settingsMetadata
-    ]
+    [repositoryStore.repositories.length, repositoryStore.settingsMetadata.lastImportAt]
   )
 
   useEffect(() => {
@@ -179,6 +170,8 @@ function App() {
           onNavigate={setView}
           onOpenRepository={openRepository}
           repositoryCount={repositoryStore.repositories.length}
+          repositoryNotes={repositoryStore.repositoryNotes}
+          repositorySignals={repositoryStore.repositorySignals}
         />
       )}
 

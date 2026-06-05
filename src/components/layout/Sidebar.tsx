@@ -11,7 +11,6 @@ const navItems: Array<{ id: View; label: string }> = [
   { id: "home", label: "Home" },
   { id: "library", label: "Library" },
   { id: "collections", label: "Collections" },
-  { id: "favorites", label: "Favorites" },
   { id: "settings", label: "Settings" }
 ]
 

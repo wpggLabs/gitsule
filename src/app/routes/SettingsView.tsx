@@ -1,5 +1,6 @@
 import { PageHeader } from "../../components/ui/PageHeader"
 import type { UserPreferences } from "../../types/userPreferences"
+import { useState } from "react"
 
 type Props = {
   githubToken: string
@@ -15,11 +16,7 @@ type Props = {
 }
 
 type SettingsStats = {
-  collectionCount: number
-  databaseSizeBytes: number
-  importedRepositoryCount: number
   lastImportAt: string | null
-  notesCount: number
   repositoryCount: number
 }
 
@@ -36,6 +33,7 @@ export function SettingsView({
   stats
 }: Props) {
   const canImport = Boolean(githubToken.trim() || preferences.githubTokenStored)
+  const [showDevTools, setShowDevTools] = useState(false)
 
   return (
     <section>
@@ -43,14 +41,8 @@ export function SettingsView({
       <div className="max-w-2xl rounded-md border border-zinc-800 bg-zinc-950/70 p-5">
         <SettingRow label="GitHub Username" value={preferences.githubUsername || "Not connected"} />
         <SettingRow label="PAT Status" value={preferences.githubTokenStored ? "Stored locally" : "Not stored"} />
-        <SettingRow label="Imported Repositories" value={formatCount(stats.importedRepositoryCount)} />
         <SettingRow label="Last Import" value={formatTimestamp(stats.lastImportAt)} />
         <SettingRow label="Repository Count" value={formatCount(stats.repositoryCount)} />
-        <SettingRow label="Notes Count" value={formatCount(stats.notesCount)} />
-        <SettingRow label="Collection Count" value={formatCount(stats.collectionCount)} />
-        <SettingRow label="Database Size" value={formatBytes(stats.databaseSizeBytes)} />
-        <SettingRow label="Theme" value={preferences.theme === "dark" ? "Dark" : "Light"} />
-        <SettingRow label="Storage" value="Local SQLite" />
         <div className="border-b border-zinc-900 py-4">
           <div className="font-medium text-zinc-100">GitHub Personal Access Token</div>
           <div className="mt-1 text-sm text-zinc-500">
@@ -85,32 +77,46 @@ export function SettingsView({
           {importMessage && <div className="mt-3 text-sm text-emerald-300">{importMessage}</div>}
           {importError && <div className="mt-3 text-sm text-red-300">{importError}</div>}
         </div>
-        <div className="flex items-center justify-between gap-4 border-b border-zinc-900 py-4 last:border-b-0">
-          <div>
-            <div className="font-medium text-zinc-100">Seed Database</div>
-            <div className="mt-1 text-sm text-zinc-500">Load the current mock library into local SQLite.</div>
-          </div>
-          <button
-            className="rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-100 hover:border-github/60"
-            onClick={onSeedDatabase}
-            type="button"
-          >
-            Seed
-          </button>
-        </div>
         <div className="flex items-center justify-between gap-4 py-4">
-          <div>
-            <div className="font-medium text-zinc-100">Reset Dev Database</div>
-            <div className="mt-1 text-sm text-zinc-500">Clear local SQLite and return to the seed fallback.</div>
-          </div>
+          <div className="text-sm text-zinc-500">Local-first import tools for personal V1.</div>
           <button
-            className="rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-100 hover:border-github/60"
-            onClick={onResetDatabase}
+            className="text-sm text-zinc-500 hover:text-zinc-200"
+            onClick={() => setShowDevTools((current) => !current)}
             type="button"
           >
-            Reset
+            {showDevTools ? "Hide dev tools" : "Show dev tools"}
           </button>
         </div>
+        {showDevTools && (
+          <div className="border-t border-zinc-900 pt-4">
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-900 py-4">
+              <div>
+                <div className="font-medium text-zinc-100">Seed Database</div>
+                <div className="mt-1 text-sm text-zinc-500">Load the current mock library into local SQLite.</div>
+              </div>
+              <button
+                className="rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-100 hover:border-github/60"
+                onClick={onSeedDatabase}
+                type="button"
+              >
+                Seed
+              </button>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div>
+                <div className="font-medium text-zinc-100">Reset Dev Database</div>
+                <div className="mt-1 text-sm text-zinc-500">Clear local SQLite and return to the seed fallback.</div>
+              </div>
+              <button
+                className="rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-100 hover:border-github/60"
+                onClick={onResetDatabase}
+                type="button"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )
@@ -127,18 +133,6 @@ function SettingRow({ label, value }: { label: string; value: string }) {
 
 function formatCount(value: number) {
   return new Intl.NumberFormat().format(value)
-}
-
-function formatBytes(bytes: number) {
-  if (!bytes) {
-    return "Not created yet"
-  }
-
-  if (bytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 function formatTimestamp(value: string | null) {
